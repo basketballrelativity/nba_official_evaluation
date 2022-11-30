@@ -22,19 +22,12 @@ def playoff_assignments():
 			the number of playoff games worked by official
 	"""
 
-	playoff_df_19 = pd.read_csv('data/box/box_2019_playoff.csv')
-	playoff_df_20 = pd.read_csv('data/box/box_2020_playoff.csv')
-	playoff_df_21 = pd.read_csv('data/box/box_2021_playoff.csv')
-
-	official_list = list(playoff_df_19['Official 1']) + \
-		list(playoff_df_19['Official 2']) + \
-		list(playoff_df_19['Official 3']) + \
-		list(playoff_df_20['Official 1']) + \
-		list(playoff_df_20['Official 2']) + \
-		list(playoff_df_20['Official 3']) + \
-		list(playoff_df_21['Official 1']) + \
-		list(playoff_df_21['Official 2']) + \
-		list(playoff_df_21['Official 3'])
+	official_list = []
+	for season in range(2018, 2022):
+		playoff_df = pd.read_csv(f'data/box/box_{season}_playoff.csv')
+		official_list += list(playoff_df["Official 1"]) + \
+			list(playoff_df["Official 2"]) + \
+			list(playoff_df["Official 3"])
 
 	all_df = pd.DataFrame({'official_id': official_list,
 						   'id': range(len(official_list))})
@@ -61,6 +54,7 @@ def officials_to_one_hot(official_df):
 						 list(official_df['Official 2']) +
 						 list(official_df['Official 3'])))
 
+	# Flip to one if the official is on the court
 	for official in officials:
 		official_df[str(official)] = [1 if off_1 == official
 									  or off_2 == official
@@ -71,53 +65,6 @@ def officials_to_one_hot(official_df):
 									  								 official_df['Official 3'])]
 
 	return official_df
-
-
-def str_to_time(time_str, period):
-    """ This function converts a period and time to seconds remaining
-    in the game.
-    
-    Overtime periods are treated as new games.
-
-	@param time_str (str): Game time in MM:SS format
-	@param period (int): Integer indicating the quarter of the
-		game. Quarters greater than 4 indicate OT periods
-
-	Returns:
-		- seconds_left: Integer of seconds remaining in
-			a quarter
-    """
-
-    split_time = time_str.split(':')
-    seconds_left_period = int(split_time[0]) * 60 + int(split_time[1])
-
-    if period <= 4:
-        base_time = 720 * (4 - period)
-    else:
-        base_time = 0
-
-    seconds_left = seconds_left_period + base_time
-
-    return seconds_left
-
-
-def str_to_time_l2m(time_str):
-    """ This function converts a period and time to seconds remaining
-    in the game.
-    
-    Overtime periods are treated as new games.
-
-	@param time_str (str): Game time in MM:SS format
-
-	Returns:
-		- seconds_left_period - Integer of seconds remaining
-			in a quarter
-    """
-
-    split_time = time_str.split(':')
-    seconds_left_period = int(split_time[0]) * 60 + int(round(float(split_time[1])))
-
-    return seconds_left_period
 
 
 def read_files(year):
@@ -139,6 +86,8 @@ def read_files(year):
 
 		l2m_df = pd.read_csv(f'data/l2m/l2m_{year}.csv')
 	if year == 2019:
+		# COVID year split by non-bubble and bubble (alt)
+		# for boxscore data
 		box_df = pd.read_csv('data/box/box_2019.csv')
 		box_alt_df = pd.read_csv('data/box/box_2019_alt.csv')
 		box_df = pd.concat([box_df, box_alt_df], axis=0)
@@ -153,7 +102,10 @@ def read_files(year):
 
 def date_conversion(challenge_df):
 	""" This function converts the date strings from the
-	challenge date to datetime objects
+	challenge date to datetime objects. This is necessary
+	because the 2019-20 challenge data dates are formatted
+	with dashes, while the 2020-21 challenge data dates are
+	formatted with slashes
 
 	@param challenge_df (pd.DataFrame): DataFrame containing
 		Coach's Challenge data
@@ -179,6 +131,7 @@ def date_conversion(challenge_df):
 				 'Mar': '2020'}
 
 	date_list = []
+	# Converting to a consistent date format
 	for date_str in challenge_df['Date']:
 		if '-' in date_str:
 			date_vals = date_str.split('-')
@@ -192,6 +145,7 @@ def date_conversion(challenge_df):
 
 		date_list.append(date_obj)
 
+	# Storing consistent date format
 	challenge_df['Date'] = date_list
 
 	return challenge_df
@@ -207,6 +161,7 @@ def read_challenges():
 			Coach's challenge data and referee assignments
 	"""
 
+	# Read in challenges and convert
 	challenge_df = pd.read_csv('data/challenge/challenge_2019.csv', encoding = "ISO-8859-1")
 	challenge_df_20 = pd.read_csv('data/challenge/challenge_2020.csv', encoding = "ISO-8859-1")
 	challenge_df = pd.concat([challenge_df, challenge_df_20], axis=0)
@@ -214,17 +169,20 @@ def read_challenges():
 	challenge_df = challenge_df[pd.notnull(challenge_df['Date'])]
 	challenge_df = date_conversion(challenge_df)
 
+	# Using date and home/away team to join to official data
 	games_df = pd.read_csv('data/game/games_2019.csv')
 	games_df_alt = pd.read_csv('data/game/games_2019_alt.csv')
 	games_df_21 = pd.read_csv('data/game/games_2020.csv')
 	games_df = pd.concat([games_df, games_df_alt], axis=0)
 	games_df = pd.concat([games_df, games_df_21], axis=0)
 
+	# Ensuring consistent formatting for game data to enable a join to challenge data
 	games_df['Date'] = [datetime.strptime(x[0:10], '%Y-%m-%d')
 								 for x in games_df['GAME_DATE_EST']]
 	games_df['Visiting'] = [x.split('/')[1][0:3] for x in games_df['GAMECODE']]
 	games_df['Home'] = [x.split('/')[1][3:] for x in games_df['GAMECODE']]
 
+	# Joining game data with IDs to challenge data
 	challenge_df = challenge_df.merge(games_df[['GAME_ID', 'Visiting', 'Home', 'Date']],
 									  left_on=['Date', 'Visiting', 'Home'],
 									  right_on=['Date', 'Visiting', 'Home'])
