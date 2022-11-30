@@ -172,13 +172,12 @@ def visualize_model(clf, X_test, y_test):
     # Formatting
     ax1.set_ylabel("Fraction of positives", fontsize=24)
     ax1.set_ylim([-0.05, 1.05])
-    ax1.legend(loc="lower right")
+    ax1.legend(loc="lower right", fontsize=18)
 
     ax2.set_xlabel("Mean predicted value", fontsize=24)
     ax2.set_ylabel("Count", fontsize=24)
     plt.xticks(fontsize=18)
     plt.yticks(fontsize=18)
-    plt.legend(fontsize=18)
 
     plt.tight_layout()
     plt.savefig('calibration.png')
@@ -272,7 +271,6 @@ def visualize_playoff_officials(coef_df):
     plt.savefig('playoff.png')
     plt.show()
 
-
 def main():
     """ Read in and format data
 
@@ -346,6 +344,8 @@ def main():
 
 if __name__ == '__main__':
     official_df, l2m_df = main()
+    print("Number of potential non-fouls (0) and fouls (1) per L2M report")
+    print(pd.DataFrame(l2m_df.groupby(["game_id", "Foul"])["Time"].count()).reset_index().groupby("Foul")["Time"].mean())
     x_test, y_test, lr_best, interval_df = build_model(official_df)
     visualize_model(lr_best, x_test, y_test)
     visualize_coefficients(interval_df)
